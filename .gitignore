@@ -1,0 +1,121 @@
+## ===================================================
+## .gitignore para .NET 8 Web API + Docker + PostgreSQL
+## Estandar profesional listo para produccion
+## ===================================================
+
+# -------------------------------------------------
+# 1. Build output - Compilaciones y publicaciones
+# -------------------------------------------------
+# Carpetas generadas por dotnet build / dotnet publish.
+# Son reproducibles y no deben versionarse.
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+publish/
+artifacts/
+
+# -------------------------------------------------
+# 2. NuGet - Paquetes y cache de dependencias
+# -------------------------------------------------
+# Los paquetes se restauran con dotnet restore.
+# Solo se versiona el .csproj (no los paquetes descargados).
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+
+# -------------------------------------------------
+# 3. Archivos de usuario e IDE
+# -------------------------------------------------
+# Configuraciones locales de Visual Studio, VS Code y Rider.
+# Cada desarrollador tiene las suyas.
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+.vscode/
+.idea/
+*.swp
+*~
+
+# -------------------------------------------------
+# 4. Resultados de pruebas y cobertura
+# -------------------------------------------------
+# Generados por dotnet test. Reproducibles en CI/CD.
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+coverage*/
+*.coveragexml
+*.coverage
+lcov.info
+
+# -------------------------------------------------
+# 5. Archivos del sistema operativo
+# -------------------------------------------------
+# Metadatos de macOS, Windows y Linux que no aportan nada.
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# -------------------------------------------------
+# 6. Secretos y variables de entorno
+# -------------------------------------------------
+# CRITICO: Nunca subir credenciales al repositorio.
+# Las conexiones a BD, API keys y tokens van aqui.
+.env
+.env.*
+!.env.example
+*.pfx
+*.key
+*.pem
+*.p12
+**/secrets/
+appsettings.Local.json
+appsettings.Production.json
+
+# -------------------------------------------------
+# 7. Docker - Archivos temporales
+# -------------------------------------------------
+# Volumenes locales y overrides personales de compose.
+# El compose.yml base SI se versiona.
+docker-compose.override.yml
+compose.override.yml
+**/pgdata/
+**/postgres-data/
+
+# -------------------------------------------------
+# 8. Entity Framework - Snapshots de debug
+# -------------------------------------------------
+# Las migraciones SI se versionan (carpeta Migrations/).
+# Solo se ignoran archivos temporales de EF tooling.
+*.dbmdl
+*.dbproj.schemaview
+*.jfm
+*.pfx
+
+# -------------------------------------------------
+# 9. Logs y archivos temporales
+# -------------------------------------------------
+# Logs de la aplicacion y archivos de diagnostico.
+logs/
+*.log
+*.tmp
+*.temp
+*.bak
+*.cache
+healthchecksdb
+
+# -------------------------------------------------
+# 10. Archivos de publicacion y despliegue
+# -------------------------------------------------
+# Bundles web, archivos comprimidos generados por CI/CD.
+*.zip
+*.tar.gz
+*.rar
+web.config
