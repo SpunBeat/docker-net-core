@@ -28,19 +28,33 @@ Edita el archivo `.env` y ajusta los valores segun tu entorno. Como minimo, camb
 
 ### 2. Levantar el proyecto
 
+#### Produccion
+
 ```bash
 docker compose up --build
 ```
 
-Esto levanta:
+Usa `Dockerfile` (multi-stage build, imagen optimizada, usuario non-root). La API sirve el binario compilado en modo Release.
+
+#### Desarrollo (con hot reload)
+
+```bash
+docker compose -f compose.yml -f compose.dev.yml up --build
+```
+
+Usa `Dockerfile.dev` (imagen SDK, `dotnet watch run`). Los cambios en el codigo se reflejan automaticamente sin reconstruir el contenedor.
+
+> Ver seccion [Comando de desarrollo en detalle](#comando-de-desarrollo-en-detalle) para una explicacion completa.
+
+Ambos modos levantan:
 - **API** en `http://localhost:8080` (configurable via `API_PORT`)
 - **PostgreSQL** en `localhost:5432` (configurable via `DB_PORT`)
 
-Las migraciones se aplican automáticamente al iniciar la API.
+Las migraciones se aplican automaticamente al iniciar la API.
 
 ### 3. Swagger UI
 
-Accede a la documentación interactiva en:
+Accede a la documentacion interactiva en:
 
 ```
 http://localhost:8080/swagger
@@ -54,7 +68,7 @@ http://localhost:8080/swagger
 docker compose down
 ```
 
-Para eliminar también los datos de PostgreSQL:
+Para eliminar tambien los datos de PostgreSQL:
 
 ```bash
 docker compose down -v
@@ -85,6 +99,130 @@ curl -X POST http://localhost:8080/api/products \
 ```bash
 curl http://localhost:8080/api/products
 ```
+
+## Comando de desarrollo en detalle
+
+### Anatomia del comando
+
+```bash
+docker compose -f compose.yml -f compose.dev.yml up --build
+```
+
+El comando tiene 4 partes. Cada una cumple un rol especifico:
+
+```
+docker compose                        → Motor de orquestacion
+  -f compose.yml                      → Archivo BASE (servicios, red, volumen, healthcheck)
+  -f compose.dev.yml                  → Archivo OVERRIDE (sobreescribe config para desarrollo)
+  up --build                          → Levanta servicios y reconstruye imagenes
+```
+
+### Como funciona la combinacion de archivos (`-f ... -f ...`)
+
+Docker Compose **fusiona** los archivos YAML en orden de izquierda a derecha. El segundo archivo sobreescribe o extiende las claves del primero. Lo que no se menciona en el override, se hereda intacto del base.
+
+**compose.yml** (base) define la arquitectura completa:
+```yaml
+services:
+  api:
+    build: .                                  # Usa Dockerfile (multi-stage, Release)
+    ports:
+      - "${API_PORT:-8080}:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT}
+    depends_on: ...
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine                 # Se hereda tal cual
+    healthcheck: ...                          # Se hereda tal cual
+```
+
+**compose.dev.yml** (override) sobreescribe solo lo necesario para desarrollo:
+```yaml
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev              # SOBREESCRIBE: usa SDK en vez de multi-stage
+    working_dir: /src                         # AGREGA: directorio de trabajo
+    command: dotnet watch run --urls=...      # SOBREESCRIBE: hot reload en vez de binario
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development    # SOBREESCRIBE: fuerza Development
+    volumes:
+      - .:/src:cached                         # AGREGA: bind mount del codigo fuente
+```
+
+> El servicio `db` no aparece en `compose.dev.yml`, por lo tanto se hereda completo desde `compose.yml`.
+
+### Resultado de la fusion
+
+Esto es lo que Docker Compose ejecuta internamente despues de combinar ambos archivos:
+
+```yaml
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev        # ← viene de compose.dev.yml
+    working_dir: /src                    # ← viene de compose.dev.yml
+    command: dotnet watch run ...        # ← viene de compose.dev.yml
+    ports:
+      - "8080:8080"                     # ← heredado de compose.yml
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development  # ← sobreescrito por compose.dev.yml
+      - ConnectionStrings__Default...       # ← sobreescrito por compose.dev.yml
+    volumes:
+      - .:/src:cached                    # ← viene de compose.dev.yml
+    depends_on:
+      db:
+        condition: service_healthy       # ← heredado de compose.yml
+    restart: unless-stopped              # ← heredado de compose.yml
+
+  db:                                    # ← heredado COMPLETO de compose.yml
+    image: postgres:16-alpine
+    environment: ...
+    ports: ...
+    volumes: ...
+    healthcheck: ...
+    restart: unless-stopped
+```
+
+Puedes verificar esta fusion en cualquier momento con:
+
+```bash
+docker compose -f compose.yml -f compose.dev.yml config
+```
+
+### Que implica cada flag
+
+| Flag | Que hace | Que pasa si no lo usas |
+|------|----------|------------------------|
+| `-f compose.yml` | Carga el archivo base con toda la infraestructura | Docker Compose busca `compose.yml` automaticamente, pero al usar `-f` explicito debes declarar **todos** los archivos |
+| `-f compose.dev.yml` | Aplica overrides de desarrollo sobre el base | Se usa el `Dockerfile` de produccion (multi-stage, sin hot reload, sin bind mount) |
+| `up` | Crea e inicia los contenedores | - |
+| `--build` | Fuerza la reconstruccion de la imagen antes de iniciar | Se reutiliza la imagen cacheada, ignorando cambios en el `Dockerfile` o en el `.csproj` |
+
+### Implicaciones reales en desarrollo
+
+**Hot reload activado** — `dotnet watch run` detecta cambios en archivos `.cs` y recompila automaticamente. No necesitas hacer `docker compose down && up` cada vez que modificas codigo.
+
+**Bind mount del codigo** — El volumen `.:/src:cached` monta tu directorio local dentro del contenedor. Cuando guardas un archivo en tu editor, el contenedor lo ve inmediatamente. La flag `:cached` optimiza el rendimiento en macOS.
+
+**Imagen SDK (no runtime)** — `Dockerfile.dev` usa `dotnet/sdk:8.0` que incluye el compilador. Es mas pesada (~900MB vs ~220MB), pero necesaria para compilar dentro del contenedor.
+
+**Environment forzado** — `compose.dev.yml` fuerza `ASPNETCORE_ENVIRONMENT=Development` independientemente de lo que diga tu `.env`. Esto garantiza que Swagger, detailed errors y sensitive data logging esten activos.
+
+### Comparacion: Desarrollo vs Produccion
+
+| Aspecto | `docker compose up` | `docker compose -f ... -f ... up` |
+|---------|---------------------|-------------------------------------|
+| Dockerfile | `Dockerfile` (multi-stage) | `Dockerfile.dev` (SDK completo) |
+| Imagen base | `aspnet:8.0` (~220MB) | `sdk:8.0` (~900MB) |
+| Ejecucion | Binario compilado (Release) | `dotnet watch run` (hot reload) |
+| Codigo fuente | Copiado en build, inmutable | Bind mount, cambios en vivo |
+| Usuario | `app` (non-root) | root (necesario para watch) |
+| Uso | Produccion / staging / CI | Desarrollo local |
 
 ## Variables de entorno
 
