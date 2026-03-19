@@ -16,19 +16,29 @@ API REST con Minimal APIs, Entity Framework Core y PostgreSQL, todo corriendo en
 
 - [Docker](https://docs.docker.com/get-docker/) instalado
 
-### Levantar el proyecto
+### 1. Configurar variables de entorno
+
+```bash
+cp .env.example .env
+```
+
+Edita el archivo `.env` y ajusta los valores segun tu entorno. Como minimo, cambia `POSTGRES_PASSWORD`.
+
+> **IMPORTANTE:** El archivo `.env` contiene credenciales y esta excluido de Git. Nunca lo subas al repositorio.
+
+### 2. Levantar el proyecto
 
 ```bash
 docker compose up --build
 ```
 
 Esto levanta:
-- **API** en `http://localhost:8080`
-- **PostgreSQL** en `localhost:5432`
+- **API** en `http://localhost:8080` (configurable via `API_PORT`)
+- **PostgreSQL** en `localhost:5432` (configurable via `DB_PORT`)
 
 Las migraciones se aplican automáticamente al iniciar la API.
 
-### Swagger UI
+### 3. Swagger UI
 
 Accede a la documentación interactiva en:
 
@@ -36,7 +46,9 @@ Accede a la documentación interactiva en:
 http://localhost:8080/swagger
 ```
 
-### Detener el proyecto
+> Swagger solo esta disponible cuando `ASPNETCORE_ENVIRONMENT=Development`.
+
+### 4. Detener el proyecto
 
 ```bash
 docker compose down
@@ -76,7 +88,11 @@ curl http://localhost:8080/api/products
 
 ## Variables de entorno
 
-| Variable | Descripción |
-|----------|-------------|
-| `ConnectionStrings__DefaultConnection` | Cadena de conexión a PostgreSQL |
-| `ASPNETCORE_ENVIRONMENT` | Entorno de ejecución (Development/Production) |
+| Variable | Descripción | Valor por defecto |
+|----------|-------------|-------------------|
+| `ASPNETCORE_ENVIRONMENT` | Entorno de ejecución | `Development` |
+| `POSTGRES_USER` | Usuario de PostgreSQL | `postgres` |
+| `POSTGRES_PASSWORD` | Password de PostgreSQL | *(sin default, requerido)* |
+| `POSTGRES_DB` | Nombre de la base de datos | `myapi` |
+| `API_PORT` | Puerto expuesto de la API | `8080` |
+| `DB_PORT` | Puerto expuesto de PostgreSQL | `5432` |
