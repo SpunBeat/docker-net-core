@@ -63,6 +63,63 @@ app.MapGet("/api/products", async (AppDbContext db) =>
 .WithName("GetProducts")
 .WithOpenApi();
 
+app.MapGet("/api/products/search", async (
+    AppDbContext db,
+    string? name,
+    string? brand,
+    decimal? minPrice,
+    decimal? maxPrice,
+    string? sort,
+    int page = 1,
+    int pageSize = 10) =>
+{
+    // Validation
+    if (page < 1) page = 1;
+    pageSize = Math.Clamp(pageSize, 1, 50);
+
+    // Base query (composable)
+    var query = db.Products.AsNoTracking().AsQueryable();
+
+    // Filters (only applied when parameter is present)
+    if (!string.IsNullOrWhiteSpace(name))
+        query = query.Where(p => EF.Functions.ILike(p.Name, $"%{name}%"));
+
+    if (!string.IsNullOrWhiteSpace(brand))
+        query = query.Where(p => EF.Functions.ILike(p.Brand, $"%{brand}%"));
+
+    if (minPrice.HasValue)
+        query = query.Where(p => p.Price >= minPrice.Value);
+
+    if (maxPrice.HasValue)
+        query = query.Where(p => p.Price <= maxPrice.Value);
+
+    // Total count (before pagination, after filters)
+    var totalItems = await query.CountAsync();
+
+    // Sorting
+    query = sort?.ToLowerInvariant() switch
+    {
+        "price_asc"  => query.OrderBy(p => p.Price),
+        "price_desc" => query.OrderByDescending(p => p.Price),
+        "name_asc"   => query.OrderBy(p => p.Name),
+        "name_desc"  => query.OrderByDescending(p => p.Name),
+        _            => query.OrderBy(p => p.Id)
+    };
+
+    // Pagination
+    var items = await query
+        .Skip((page - 1) * pageSize)
+        .Take(pageSize)
+        .Select(p => new ProductDto(p.Id, p.Name, p.Price, p.Brand))
+        .ToListAsync();
+
+    var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+
+    return Results.Ok(new PagedResponse<ProductDto>(items, page, pageSize, totalItems, totalPages));
+})
+.WithName("SearchProducts")
+.WithOpenApi();
+
 app.MapGet("/api/products/{id}", async (int id, AppDbContext db) =>
 {
     var product = await db.Products.FindAsync(id);

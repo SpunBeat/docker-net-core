@@ -76,13 +76,14 @@ docker compose down -v
 
 ## Endpoints
 
-| Método | Ruta                  | Descripción           |
-|--------|-----------------------|-----------------------|
-| GET    | /api/products         | Listar productos      |
-| GET    | /api/products/{id}    | Obtener producto      |
-| POST   | /api/products         | Crear producto        |
-| PUT    | /api/products/{id}    | Actualizar producto   |
-| DELETE | /api/products/{id}    | Eliminar producto     |
+| Método | Ruta                    | Descripción              |
+|--------|-------------------------|--------------------------|
+| GET    | /api/products           | Listar productos         |
+| GET    | /api/products/search    | Busqueda avanzada        |
+| GET    | /api/products/{id}      | Obtener producto         |
+| POST   | /api/products           | Crear producto           |
+| PUT    | /api/products/{id}      | Actualizar producto      |
+| DELETE | /api/products/{id}      | Eliminar producto        |
 
 ## Ejemplo de uso
 
@@ -98,6 +99,61 @@ curl -X POST http://localhost:8080/api/products \
 
 ```bash
 curl http://localhost:8080/api/products
+```
+
+### Busqueda avanzada
+
+**Parametros disponibles:**
+
+| Parametro  | Tipo    | Default | Descripcion                                         |
+|------------|---------|---------|-----------------------------------------------------|
+| `name`     | string  | -       | Busqueda parcial por nombre (case-insensitive)       |
+| `brand`    | string  | -       | Filtro por marca (case-insensitive)                  |
+| `minPrice` | decimal | -       | Precio minimo                                        |
+| `maxPrice` | decimal | -       | Precio maximo                                        |
+| `sort`     | string  | id asc  | Ordenamiento: `price_asc`, `price_desc`, `name_asc`, `name_desc` |
+| `page`     | int     | 1       | Numero de pagina (minimo 1)                          |
+| `pageSize` | int     | 10      | Resultados por pagina (1-50)                         |
+
+**Ejemplos de request:**
+
+```bash
+# Buscar por nombre
+curl "http://localhost:8080/api/products/search?name=laptop"
+
+# Filtrar por marca y rango de precios
+curl "http://localhost:8080/api/products/search?brand=dell&minPrice=500&maxPrice=1500"
+
+# Paginacion con ordenamiento
+curl "http://localhost:8080/api/products/search?sort=price_desc&page=1&pageSize=5"
+
+# Combinacion completa
+curl "http://localhost:8080/api/products/search?name=laptop&brand=dell&minPrice=500&maxPrice=2000&sort=price_asc&page=1&pageSize=10"
+```
+
+**Ejemplo de response:**
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "name": "Laptop Inspiron 15",
+      "price": 899.99,
+      "brand": "Dell"
+    },
+    {
+      "id": 3,
+      "name": "Laptop XPS 13",
+      "price": 1299.99,
+      "brand": "Dell"
+    }
+  ],
+  "page": 1,
+  "pageSize": 10,
+  "totalItems": 2,
+  "totalPages": 1
+}
 ```
 
 ## Comando de desarrollo en detalle
