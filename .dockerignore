@@ -2,4 +2,6 @@ bin/
 obj/
 .git/
 .gitignore
+.env
+.env.*
 *.md
